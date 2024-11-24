@@ -1,0 +1,103 @@
+---
+title: "CEVE 101: Project 03"
+author: "Jessica Li (jl536)" # CHANGE THIS
+date: "2024-10-23"
+
+# do not change anything below this line
+engine: julia
+code-annotations: hover
+format:
+    html: default
+    docx: default
+---
+
+We begin by loading the required packages.
+
+```{julia}
+using Revise                      # <1>
+using RainwaterHarvesting         # <2>
+```
+
+1. `Revise` allows us to update code without restarting Julia.
+2. We load the `RainwaterHarvesting` package that contains our simulation tools.
+
+### Setting the file path
+
+```{julia}
+filepath = "data/69.txt" # <1>   
+rainfall_data = RainfallData(filepath) # <2>
+rainfall_data.annual_data
+```
+
+### Discussion
+1. There are 7 years of valid data: 1985, 2004, 2002, 2001, 2013, 2015, 1991.
+2. The available data is sufficient for meaningful risk assessments, becuase the amount of data points included in the datset is large enough, and there are enough years included.
+3. The years of droughts in Ceará, Brazil are 2012-2018, 1988, and 2002. 
+4. My data includes 2013, 2015, and 2002.
+5. Missing data from the drought years will affect the analysis of water demand and scarcity. When the times that water is most needed are not in the data set, there will be inaccuracies in the analysis. This would underestimate the impact of the drought on the communities, as the analysis would include more non-drought years that drought years. 
+
+### Plotting the Data
+
+```{julia}
+plot(rainfall_data) # <1>
+```
+
+1. This `plot` function is defined in [viz.jl](./RainwaterHarvesting/src/viz.jl) and is a thin wrapper around the Plots.jl package.
+
+### Discussion
+
+1. One limiting assumption is that the household begins using water from the tanks after the 150th day of the year, which could be inaccurate if the rainy season was shorter or longer than average. The other assumption is that each household consumes 74.1 liters of water per day during the dry season, which could vary between households of different sizes.
+2. There should be a coefficient based on household size that can be addded into the consumption equations. This would be something similar to C_t = 74.1(h), where h = # of household members. This would solve some issues with differences in consumption based on the assumptions in step 1.
+
+## Model Implementation and Testing
+
+### Defining the Model Parameters
+
+```{julia}
+#| output: false
+param = ModelParameters(          # <1>
+    runoff_coefficient=0.85,      # <2>
+    roof_area_m2=55.0,            # <3>
+    first_flush_mm=2.0,           # <4>
+    tank_capacity_L=12000.0       # <5>
+)
+```
+
+1. Changed tank_capacity_L from 16000.0 to 12000.0, and roof_area_m2 from 45 to 55. I chose to modify these parameters because they seemed the most important factors in the storage of water. 
+2. This makes the number/years of failures much higher than before because there is way less tank volume than before, which means that there is less water stored for the drought.
+
+### Running the Simulation for One Year
+
+```{julia}
+rainfall_1981 = rainfall_data.annual_data[1981]    # <1>
+results_1981 = run_timesteps(rainfall_1981, param) # <2>
+p1 = plot(results_1981)                                 # <3>
+```
+
+1. We select the annual rainfall data for the year 1981.
+2. We run the simulation for the year 1981.
+3. We plot the results, again using a `plot` function defined in [viz.jl](./RainwaterHarvesting/src/viz.jl).
+
+
+```{julia}
+p2 = plot(rainfall_1981)
+plot(p2, p1, layout=(2, 1), size=(1000, 700), link=:x)
+```
+
+
+### Reliability Analysis
+
+```{julia}
+all_years = sort(collect(keys(rainfall_data.annual_data)))          # <1>
+all_results = [run_timesteps(rainfall_data.annual_data[year], param) for year in all_years]   # <2>
+any_failures = [!isempty(result.failure_dates) for result in all_results]  # <3>
+println("Number of years with failures: ", sum(any_failures), " out of ", length(all_years))  # <4>
+```
+
+## Discussion
+1. 39 out of 50 years failed, which gives us a 78% failure rate and a 22% reliability percentage. 
+2. This shows that the tank size has a large impact on the ability of the system to function and save people from drought. When there's not enough money to buy large tanks, the people will need to get by with smaller tanks, and less water during droughts. It also shows that while the roof area matters in the recharge rate, the amount recharged doesn't matter as much if there's no space to store the water.
+
+
+## Gap
+1. One limitation is that the model doesn't include all the drought years. This limits how well the model will analyze the needed size of a rainwater harvesting system. By adding more data from the drought years, there can be an accurate estimation for the required size of the system. They can also add more data from all years in general to get more accurate results. 
